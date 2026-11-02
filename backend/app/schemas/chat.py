@@ -8,6 +8,8 @@ class ChatRequest(BaseModel):
     execution_mode: str = "single"
     model: str | None = None
     conversation_id: str | None = None
+    attachment_ids: list[str] = Field(default_factory=list, max_length=20)
+    source_ids: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ChatResponse(BaseModel):

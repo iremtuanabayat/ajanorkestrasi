@@ -5,18 +5,24 @@ from typing import TypedDict
 from operator import add
 
 from app.database.models import Agent
+from app.database.connection import SessionLocal
 from app.llm.ollama_provider import ollama
+from app.services.tool_execution import ToolExecutor
+import httpx
 
 logger = logging.getLogger(__name__)
 
 
 class OrchestraState(TypedDict, total=False):
     task_id: str
+    conversation_id: str | None
+    project_id: str | None
     user_input: str
     selected_agents: list[dict]
     current_agent: str
     messages: list[dict]
     agent_outputs: Annotated[list[dict], add]
+    tool_calls: Annotated[list[dict], add]
     execution_steps: Annotated[list[dict], add]
     task_status: str
     final_result: str
@@ -26,11 +32,22 @@ class OrchestraState(TypedDict, total=False):
 
 async def _agent_node(state: OrchestraState, agent: dict) -> dict:
     logger.info("[AGENT] started agent=%s task=%s", agent["name"], state.get("task_id"))
-    output = await ollama.chat(state["user_input"], agent["system_prompt"], state.get("model") or agent.get("model_name"))
+    db = SessionLocal()
+    try:
+        executor = ToolExecutor(db, state.get("conversation_id"), state.get("project_id"))
+        output, tool_calls = await ollama.chat_with_tools(state["user_input"], agent["system_prompt"], executor,
+                                                          state.get("model") or agent.get("model_name"))
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code not in (400, 404, 422):
+            raise
+        output = await ollama.chat(state["user_input"], agent["system_prompt"], state.get("model") or agent.get("model_name"))
+        tool_calls = []
+    finally:
+        db.close()
     logger.info("[AGENT] output generated agent=%s chars=%d", agent["name"], len(output))
     result = {"agent_id": agent["id"], "agent_name": agent["name"], "output": output}
     step = {"agent_id": agent["id"], "agent_name": agent["name"], "status": "completed"}
-    return {"agent_outputs": [result], "execution_steps": [step]}
+    return {"agent_outputs": [result], "execution_steps": [step], "tool_calls": [{**item, "agent_name": agent["name"]} for item in tool_calls]}
 
 
 async def _synthesis_node(state: OrchestraState) -> dict:

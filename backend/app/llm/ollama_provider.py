@@ -4,6 +4,7 @@ import logging
 from collections.abc import AsyncIterator
 
 from app.core.config import settings
+from app.services.tool_execution import TOOL_SPECS
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,37 @@ class OllamaProvider:
             content = response.json()["message"]["content"]
             logger.info("[OLLAMA] structured response received model=%s chars=%d", selected_model, len(content))
             return content
+
+    async def chat_with_tools(self, message: str, system_prompt: str, tool_executor, model: str | None = None, max_tool_calls: int = 4):
+        selected_model = model or self.model
+        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}]
+        tool_calls = []
+        async with httpx.AsyncClient(timeout=180) as client:
+            for _ in range(max_tool_calls + 1):
+                response = await client.post(f"{self.base_url}/api/chat", json={"model": selected_model, "stream": False,
+                    "tools": TOOL_SPECS, "messages": messages})
+                response.raise_for_status()
+                assistant = response.json().get("message", {})
+                all_calls = assistant.get("tool_calls") or []
+                if not all_calls:
+                    return assistant.get("content", ""), tool_calls
+                calls = all_calls[:max_tool_calls - len(tool_calls)]
+                assistant["tool_calls"] = calls
+                messages.append(assistant)
+                for call in calls:
+                    function = call.get("function", {})
+                    name = function.get("name", "")
+                    arguments = function.get("arguments") or {}
+                    if isinstance(arguments, str):
+                        arguments = json.loads(arguments)
+                    result = tool_executor.execute(name, arguments)
+                    tool_calls.append({"tool": name, "arguments": arguments, "result": result})
+                    messages.append({"role": "tool", "tool_name": name, "content": json.dumps(result, ensure_ascii=False)})
+                    if len(tool_calls) >= max_tool_calls:
+                        break
+                if len(tool_calls) >= max_tool_calls:
+                    messages.append({"role": "user", "content": "Tool call limit reached. Give your final response using results already returned."})
+        return "Tool call limit reached without a final response.", tool_calls
 
     async def chat_stream(self, message: str, system_prompt: str, model: str | None = None) -> AsyncIterator[str]:
         selected_model = model or self.model

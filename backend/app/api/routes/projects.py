@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
-from app.database.models import Project
+from app.database.models import Project, Task
 from app.services.execution_engine import FileManager
 from app.services.runtime_manager import runtime_manager
 
@@ -31,6 +31,16 @@ def get_project(project_id: str, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(404, "Project not found")
     return serialize(project)
+
+
+@router.get("/{project_id}/tasks")
+def get_project_tasks(project_id: str, db: Session = Depends(get_db)):
+    if not db.get(Project, project_id):
+        raise HTTPException(404, "Project not found")
+    return [{"id": task.id, "title": task.title, "status": task.status, "task_type": task.task_type,
+             "current_step": task.current_step, "generated_files": task.generated_files or [],
+             "test_results": task.test_results, "created_at": task.created_at.isoformat()}
+            for task in db.query(Task).filter(Task.project_id == project_id).order_by(Task.created_at.desc()).limit(100).all()]
 
 
 @router.get("/{project_id}/files")

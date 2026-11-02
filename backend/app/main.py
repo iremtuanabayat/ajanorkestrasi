@@ -4,7 +4,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import agents, chat, conversations, models, projects, settings as settings_routes, tasks
+from app.api.routes import agents, chat, conversations, models, projects, settings as settings_routes, tasks, workspace
 from app.core.config import settings
 from app.database.connection import create_tables
 
@@ -30,6 +30,7 @@ app.include_router(models.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
+app.include_router(workspace.router, prefix="/api")
 app.include_router(conversations.router, prefix="/api")
 app.include_router(settings_routes.router, prefix="/api")
 

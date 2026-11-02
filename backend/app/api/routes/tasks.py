@@ -54,7 +54,7 @@ async def task_events(task_id: str, db: Session = Depends(get_db)):
 async def cancel_task(task_id: str, db: Session = Depends(get_db)):
     task = db.get(Task, task_id)
     if not task: raise HTTPException(404, "Task not found")
-    if task.status in ("queued", "running"):
+    if task.status in ("queued", "running", "awaiting_approval"):
         task.cancel_requested = True; db.commit()
         if task_id in runner.jobs:
             await runner.cancel(task_id)

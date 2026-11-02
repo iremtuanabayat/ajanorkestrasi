@@ -8,12 +8,13 @@ from uuid import uuid4
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.orm import Session
 
-from app.database.models import Project, Task
+from app.database.models import Artifact, Project, Task
 from app.schemas.project import ProjectPlan
 from app.services.execution_engine import FileManager, ProjectCodeGenerator, file_manager, code_generator
 from app.services.project_planner import planner
 from app.services.qa_engine import qa_engine
 from app.services.runtime_manager import runtime_manager
+from app.services.artifact_manager import register_project_files
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,7 @@ class ProjectExecutor:
         project.status = "starting"
         task.generated_files = paths
         project.manifest = {**(project.manifest or {}), "technology_stack": project.technology_stack, "generated_files": project.generated_files, "plan": json.loads(state["plan"].model_dump_json())}
+        register_project_files(state["db"], project.id, task.id, state["workspace"], paths)
         state["db"].commit()
         return {"written_files": paths}
 
@@ -170,6 +172,7 @@ class ProjectExecutor:
         state["task"].generated_files = paths
         state["test_results"] = {**state["test_results"], "passed": False}
         state["project"].manifest = {**(state["project"].manifest or {}), "plan": json.loads(state["plan"].model_dump_json()), "generated_files": state["project"].generated_files}
+        register_project_files(state["db"], state["project"].id, state["task"].id, state["workspace"], paths)
         state["db"].commit()
         return {"generated": generated, "written_files": paths, "repair_count": state.get("repair_count", 0) + 1}
 
@@ -185,7 +188,10 @@ class ProjectExecutor:
         delivery = {"project_id": project.id, "project_name": project.name, "project_type": project.project_type,
                     "technology_stack": project.technology_stack or [], "generated_files": project.generated_files or [],
                     "status": project.status, "test_status": "passed" if tests["passed"] else "warning",
-                    "preview_url": project.preview_url, "workspace_path": project.workspace_path, "test_results": tests}
+                    "preview_url": project.preview_url, "workspace_path": project.workspace_path, "test_results": tests,
+                    "artifacts": [{"artifact_id": row.id, "filename": row.filename, "version": row.version,
+                                   "download_url": f"/api/artifacts/{row.id}/download"}
+                                  for row in state["db"].query(Artifact).filter(Artifact.project_id == project.id).order_by(Artifact.created_at.desc()).all()]}
         return {"answer": f"{project.name} projesi hazır. Önizleme: {project.preview_url}", "delivery": delivery}
 
     async def execute(self, task: Task, db: Session, prompt: str, model: str | None, publish, cancelled,

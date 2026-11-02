@@ -9,7 +9,14 @@ Yerel Ollama modellerini kullanan React + FastAPI ajan çalışma alanı.
 - Chat endpoint'leri `?stream=true` ile task, step, token, done ve error SSE olayları verir.
 - Görev iptali sonraki stream/workflow adımında uygulanır. Bekleyen Ollama HTTP çağrısı hemen kesilmeyebilir.
 - Sohbet mesajları ve ayarlar kalıcıdır. SSE kuyrukları süreç belleğinde tutulur; backend restart sonrası geçmiş görevler okunabilir ancak eski event stream replay edilmez.
-- SSE üzerinden iptal olayı, auth ve otomatik test paketi henüz yoktur.
+- Statik web proje oluşturma/değiştirme için LangGraph planla→üret→yaz→runtime→QA→onar→teslim akışı, güvenli proje dizini ve ZIP teslimi.
+- Çoklu dosya yükleme, CSV/JSON/kod/HTML/CSS/TXT/Markdown, DOCX/XLSX XML ve PDF (pypdf kuruluysa) metin çıkarımı; ZIP içeriğini çıkarmadan güvenli metin üyelerini okuma; checksum duplicate kontrolü ve 20 MB sınırı.
+- SQLite FTS5 kaynaklı chunk araması; upload/source kayıtları konuşma ve isteğe bağlı projeye bağlanır. URL alımı HTML/plain text/PDF içindir; loopback/private IP ve redirect reddedilir.
+- Proje memory CRUD API'si, sürümlü artifact kopyaları, artifact indirme/karşılaştırma ve projeyi ZIP olarak paketleme.
+- Tekli ajanda allowlist tool calling: kaynak bağlamı ara, proje dosyalarını listele ve izlenen dosyayı oku. Dosya yazımı, silme ve terminal komutları model tool'larına açık değildir.
+- Mevcut proje dosyalarını değiştirme öncesi chat içinde approval request oluşturulur; reddedilince yazım başlamaz.
+- SSE kuyrukları ve approval bekleyicileri süreç belleğindedir; backend restart sonrası event replay/approval devam ettirme yoktur. Yerel uygulamada kullanıcı kimlik doğrulaması bulunmaz.
+- Görsel vision analizi yapılandırılmış model gerektirir; yoksa dosya kaydedilir ve analiz yapılmadığı bildirilir. GitHub repository ağacı incelemesi/kimlik doğrulaması ve tam proje dashboard henüz yoktur.
 - Dışa aktarılmış Figma tasarım dosyası bulunamadı; mevcut React ekranının koyu neon görsel dili korunmuştur.
 
 ## Mimari
@@ -88,6 +95,16 @@ Figma Make preview varsayılan portu `8443`'tür. API dokümantasyonu `http://lo
 | GET | `/api/tasks/{task_id}` | Görev ve adımları |
 | GET | `/api/tasks/{task_id}/events` | Görev SSE akışı/snapshot |
 | POST | `/api/tasks/{task_id}/cancel` | Aktif görevi iptal etme isteği |
+| POST, GET | `/api/uploads` | Dosya yükleme/listeleme |
+| DELETE | `/api/uploads/{file_id}` | Yüklenen dosya ve bağlamını silme |
+| POST, GET, DELETE | `/api/sources` | Web kaynağı ekleme/listeleme/silme |
+| GET | `/api/artifacts` | Artifact sürümlerini listeleme |
+| GET | `/api/artifacts/{artifact_id}/download` | Artifact indirme |
+| GET | `/api/artifacts/{artifact_id}/versions` | Sürümleri listeleme |
+| GET | `/api/artifacts/{artifact_id}/compare/{version}` | Metin sürümlerini karşılaştırma |
+| POST | `/api/projects/{project_id}/package` | Projeyi ZIP olarak paketleme |
+| GET, POST, PATCH, DELETE | `/api/projects/{project_id}/memory` | Proje hafızası kayıtlarını yönetme |
+| POST | `/api/approvals/{approval_id}/resolve` | Bekleyen değişikliği onaylama/reddetme |
 | GET, POST | `/api/conversations` | Sohbetleri listeleme/oluşturma |
 | GET | `/api/conversations/{id}` | Mesaj geçmişini okuma |
 | GET, PUT | `/api/settings` | Ollama ve varsayılan ajan ayarları |
@@ -120,7 +137,7 @@ $env:PYTHONPATH = (Resolve-Path .\backend).Path
 python backend/tests/smoke_orchestrator.py
 ```
 
-Suite model listesi/doğrudan chat, FastAPI health, ajan CRUD, single-agent, supervisor/LangGraph multi-agent, kalıcı task steps ve SSE token/done olaylarını kontrol eder.
+Suite model listesi/doğrudan chat, FastAPI health, ajan CRUD, single-agent, supervisor/LangGraph multi-agent, kalıcı task steps ve SSE token/done olaylarını kontrol eder. Workspace ingestion/context smoke kontrolleri ayrıca CSV çıkarımı, checksum dedupe, FTS5 retrieval ve private-IP URL reddini doğrular.
 
 Backend health:
 

@@ -5,10 +5,13 @@ from pydantic import BaseModel, Field
 
 class TaskType(str, Enum):
     information = "information"
+    research = "research"
     code_generation = "code_generation"
     project_creation = "project_creation"
     project_modification = "project_modification"
     data_analysis = "data_analysis"
+    document_creation = "document_creation"
+    file_analysis = "file_analysis"
 
 
 class TaskClassification(BaseModel):

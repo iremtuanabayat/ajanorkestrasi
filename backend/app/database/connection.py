@@ -36,6 +36,7 @@ def create_tables():
             for column, definition in migrations.items():
                 if column not in columns:
                     connection.execute(text(f"ALTER TABLE tasks ADD COLUMN {column} {definition}"))
+            connection.execute(text("CREATE VIRTUAL TABLE IF NOT EXISTS context_chunks_fts USING fts5(chunk_id UNINDEXED, content, tokenize='unicode61')"))
 
 
 def get_db():
