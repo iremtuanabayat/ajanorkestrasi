@@ -1,0 +1,10 @@
+{
+  "description": "Helps users create website code, making it easier to turn web design ideas into functional sites.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
